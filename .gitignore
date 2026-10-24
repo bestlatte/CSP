@@ -1,0 +1,22 @@
+# Local tools and editor settings
+.tools/
+.idea/
+.vscode/
+*.iml
+
+# Environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Java / Maven build output
+**/target/
+*.class
+
+# Frontend dependencies and build output
+**/node_modules/
+**/dist/
+
+# OS files
+.DS_Store
+Thumbs.db

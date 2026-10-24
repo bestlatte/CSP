@@ -1,0 +1,56 @@
+-- One-time migration for an existing csp_db whose vendor IDs were assigned
+-- independently of VENDOR_CODE. Reassign IDs from 1 in VENDOR_CODE order.
+-- Run only while no other application is writing vendor data.
+USE csp_db;
+
+CREATE TEMPORARY TABLE VENDOR_ID_REMAP (
+    OLD_ID BIGINT NOT NULL PRIMARY KEY,
+    NEW_ID BIGINT NOT NULL UNIQUE,
+    STAGED_ID BIGINT NOT NULL UNIQUE
+);
+CREATE TEMPORARY TABLE VENDOR_ID_CHECK (
+    PASSED TINYINT NOT NULL CHECK (PASSED = 1)
+);
+
+START TRANSACTION;
+SELECT VENDOR_ID FROM VENDOR ORDER BY VENDOR_ID FOR UPDATE;
+SET @vendor_count = (SELECT COUNT(*) FROM VENDOR);
+SET @bank_count = (SELECT COUNT(*) FROM VENDOR_BANK_ACCOUNT);
+SET @id_offset = (SELECT COALESCE(MAX(VENDOR_ID), 0) + COUNT(*) + 1 FROM VENDOR);
+
+INSERT INTO VENDOR_ID_REMAP (OLD_ID, NEW_ID, STAGED_ID)
+SELECT VENDOR_ID, ROW_NUMBER() OVER (ORDER BY VENDOR_CODE, VENDOR_ID), VENDOR_ID + @id_offset
+FROM VENDOR;
+
+-- Parent and child keys pass through unused IDs to avoid primary-key collisions.
+SET FOREIGN_KEY_CHECKS = 0;
+UPDATE VENDOR v JOIN VENDOR_ID_REMAP m ON m.OLD_ID = v.VENDOR_ID
+SET v.VENDOR_ID = m.STAGED_ID, v.UPDATED_AT = v.UPDATED_AT;
+UPDATE VENDOR_BANK_ACCOUNT b JOIN VENDOR_ID_REMAP m ON m.OLD_ID = b.VENDOR_ID
+SET b.VENDOR_ID = m.STAGED_ID, b.UPDATED_AT = b.UPDATED_AT;
+UPDATE VENDOR v JOIN VENDOR_ID_REMAP m ON m.STAGED_ID = v.VENDOR_ID
+SET v.VENDOR_ID = m.NEW_ID, v.UPDATED_AT = v.UPDATED_AT;
+UPDATE VENDOR_BANK_ACCOUNT b JOIN VENDOR_ID_REMAP m ON m.STAGED_ID = b.VENDOR_ID
+SET b.VENDOR_ID = m.NEW_ID, b.UPDATED_AT = b.UPDATED_AT;
+
+-- A failed check aborts this script and rolls the transaction back.
+INSERT INTO VENDOR_ID_CHECK (PASSED)
+SELECT IF(
+    (SELECT COUNT(*) FROM VENDOR) = @vendor_count
+    AND (SELECT COUNT(*) FROM VENDOR_BANK_ACCOUNT) = @bank_count
+    AND (SELECT COALESCE(MIN(VENDOR_ID), 0) FROM VENDOR) = IF(@vendor_count = 0, 0, 1)
+    AND (SELECT COALESCE(MAX(VENDOR_ID), 0) FROM VENDOR) = @vendor_count
+    AND (SELECT COUNT(*) FROM VENDOR_BANK_ACCOUNT b
+         LEFT JOIN VENDOR v ON v.VENDOR_ID = b.VENDOR_ID
+         WHERE v.VENDOR_ID IS NULL) = 0,
+    1, 0
+);
+SET FOREIGN_KEY_CHECKS = 1;
+COMMIT;
+
+-- ALTER TABLE commits implicitly, so it runs only after the verified remap.
+SET @next_vendor_id = (SELECT COALESCE(MAX(VENDOR_ID), 0) + 1 FROM VENDOR);
+SET @reset_auto_increment = CONCAT('ALTER TABLE VENDOR AUTO_INCREMENT = ', @next_vendor_id);
+PREPARE reset_vendor_id FROM @reset_auto_increment;
+EXECUTE reset_vendor_id;
+DEALLOCATE PREPARE reset_vendor_id;

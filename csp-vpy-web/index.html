@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>廠商請款管理系統</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>廠商請款管理系統</h1>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" data-tab="vendor">廠商維護</div>
+            <div class="tab" data-tab="invoice">建立請款單</div>
+            <div class="tab" data-tab="approval">審核與付款</div>
+        </div>
+
+        <!-- 廠商維護-查詢條件 -->
+        <section id="page-vendor" class="page-section">
+            <div class="main-layout">
+                <div class="content-area">
+                    <!-- Query Card -->
+                    <div class="card">
+                        <h2 class="card-title">查詢條件</h2>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="q-taxid">統一編號</label>
+                                <input type="text" id="q-taxid" class="form-input" placeholder="例：12345678">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="q-name">廠商名稱</label>
+                                <input type="text" id="q-name" class="form-input" placeholder="關鍵字">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="q-status">狀態</label>
+                                <select id="q-status" class="form-select">
+                                    <option value="">全部</option>
+                                    <option value="ACTIVE" selected>啟用</option>
+                                    <option value="INACTIVE">停用</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="btn-group">
+                            <button id="btn-vendor-search" class="btn primary">🔍 查詢</button>
+                            <button id="btn-vendor-clear" class="btn ghost">🗑️ 清除</button>
+                            <button id="btn-vendor-new" class="btn secondary">➕ 新增廠商</button>
+                        </div>
+                    </div>
+
+                    <!-- 廠商維護-查詢結果 -->
+                    <div class="card">
+                        <h2 class="card-title">查詢結果</h2>
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Vendor Code</th>
+                                        <th>統一編號</th>
+                                        <th>廠商名稱</th>
+                                        <th>銀行</th>
+                                        <th>銀行戶名</th>
+                                        <th>銀行帳號</th>
+                                        <th>地址</th>
+                                        <th>電話</th>
+                                        <th>Email</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vendor-tbody">
+                                    <!-- Data will be populated by app.js -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 廠商維護-廠商編輯 -->
+                <div class="sidebar">
+                    <div id="vendor-edit" class="card vendor-edit hidden">
+                        <h2 class="card-title">廠商編輯</h2>
+                        <div class="edit-form">
+                            <div class="form-group">
+                                <label class="form-label" for="ve-code">Vendor Code</label>
+                                <input type="text" id="ve-code" class="form-input" disabled="true">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-tax">統一編號</label>
+                                <input type="text" id="ve-tax" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-name">廠商名稱</label>
+                                <input type="text" id="ve-name" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-status">狀態</label>
+                                <select id="ve-status" class="form-select">
+                                    <option value="ACTIVE">啟用</option>
+                                    <option value="INACTIVE">停用</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-email">電子郵件</label>
+                                <input type="email" id="ve-email" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-phone">聯絡電話</label>
+                                <input type="tel" id="ve-phone" class="form-input">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-addr">地址</label>
+                                <input type="text" id="ve-addr" class="form-input">
+                            </div>
+                            <!-- 銀行相關欄位 -->
+                            <div class="form-group">
+                                <label class="form-label" for="ve-bank-code">銀行代碼</label>
+                                <input type="text" id="ve-bank-code" class="form-input" placeholder="例：013">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-bank-name">銀行名稱</label>
+                                <input type="text" id="ve-bank-name" class="form-input" placeholder="例：國泰世華銀行">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-bank-acname">銀行戶名</label>
+                                <input type="text" id="ve-bank-acname" class="form-input" placeholder="例：民安有限公司">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-bank-acno">銀行帳號</label>
+                                <input type="text" id="ve-bank-acno" class="form-input" placeholder="例：123456789012">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="ve-bank-ccy">幣別</label>
+                                <input type="text" id="ve-bank-ccy" class="form-input" placeholder="例：TWD">
+                            </div>
+                            <div class="btn-group">
+                                <button id="btn-ve-save" class="btn primary">💾 儲存</button>
+                                <button id="btn-ve-cancel" class="btn ghost">❌ 取消</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 建立請款單-建立請款單 -->
+        <section id="page-invoice" class="page-section hidden">
+            <div class="content-area">
+                <!-- Basic Information Card -->
+                <div class="card">
+                    <h2 class="card-title">建立請款單</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="inv-item">項目</label>
+                            <input type="text" id="inv-item" class="form-input" placeholder="請輸入項目">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="inv-currency">幣別</label>
+                            <select id="inv-currency" class="form-select">
+                                <option value="">請選擇幣別</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="inv-tax">稅率</label>
+                            <select id="inv-tax" class="form-select">
+                                <option value="">請選擇稅率</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="inv-subtotal">未稅金額</label>
+                            <input type="number" id="inv-subtotal" class="form-input" placeholder="請輸入未稅金額">
+                        </div>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="inv-vendor">廠商</label>
+                            <select id="inv-vendor" class="form-select">
+                                <option value="">請選擇廠商</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="inv-date">請款日</label>
+                            <input type="date" id="inv-date" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="inv-due">到期日</label>
+                            <input type="date" id="inv-due" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="inv-remark">備註</label>
+                            <input type="text" id="inv-remark" class="form-input" placeholder="請輸入備註資訊">
+                        </div>
+                    </div>
+                    <div class="btn-group">
+                        <button id="btn-inv-create" class="btn ghost">💾 建立請款單</button>
+                    </div>
+                    <div id="inv-id-line" class="muted"></div>
+                </div>
+
+                <!-- 建立請款單-請款單草稿列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">請款單草稿列表</h2>
+                        <div class="btn-group">
+                            <button id="btn-inv-refresh" class="btn secondary">🔄 重新整理</button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="table" id="invoice-list-table">
+                            <thead>
+                                <tr>
+                                    <th>請款單號</th>
+                                    <th>廠商名稱</th>
+                                    <th>項目</th>
+                                    <th>幣別</th>
+                                    <th>未稅金額</th>
+                                    <th>含稅金額</th>
+                                    <th>請款日</th>
+                                    <th>到期日</th>
+                                    <th>備註</th>
+                                    <th colspan="2">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoice-list-tbody">
+                                <!-- Data will be populated by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Approval Page (Hidden) -->
+        <section id="page-approval" class="page-section hidden">
+            <div class="content-area">
+                <!-- Results List Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">待審核清單</h2>
+                        <!-- 加分題 -->
+                        <!-- <button id="btn-export-excel" class="btn secondary">📊 匯出 Excel</button> -->
+                    </div>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th></th>
+                                    <th>請款單號</th>
+                                    <th>廠商</th>
+                                    <th>項目</th>
+                                    <th>幣別</th>
+                                    <th>未稅金額</th>
+                                    <th>含稅金額</th>
+                                    <th>請款日</th>
+                                    <th>到期日</th>
+                                    <th>備註</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="approval-list-tbody">
+                                <!-- Data will be populated by app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Payment Registration Card -->
+                <div class="card">
+                    <h2 class="card-title">付款登錄</h2>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="pay-remark">請款單號</label>
+                            <span id="selected-invoice-id" style="font-weight:bold;color:#2F4B8F;"></span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="pay-remark">付款備註</label>
+                        <textarea id="pay-remark" class="form-textarea" rows="3" placeholder="請輸入付款備註"></textarea>
+                    </div>
+                    <div class="muted" style="margin-bottom: 16px;">
+                        💡 請先在上方清單勾選要付款的請款單
+                    </div>
+                    <div class="btn-group">
+                        <button id="btn-pay-submit" class="btn primary">💰 提交付款</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- External Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="app.js"></script>
+    <script>(function () { function c() { var b = a.contentDocument || a.contentWindow.document; if (b) { var d = b.createElement('script'); d.innerHTML = "window.__CF$cv$params={r:'977da40b77ed8265',t:'MTc1NjY1NDk3OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);"; b.getElementsByTagName('head')[0].appendChild(d) } } if (document.body) { var a = document.createElement('iframe'); a.height = 1; a.width = 1; a.style.position = 'absolute'; a.style.top = 0; a.style.left = 0; a.style.border = 'none'; a.style.visibility = 'hidden'; document.body.appendChild(a); if ('loading' !== document.readyState) c(); else if (window.addEventListener) document.addEventListener('DOMContentLoaded', c); else { var e = document.onreadystatechange || function () { }; document.onreadystatechange = function (b) { e(b); 'loading' !== document.readyState && (document.onreadystatechange = e, c()) } } } })();</script>
+</body>
+
+</html>
