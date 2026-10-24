@@ -1,5 +1,11 @@
 package com.cathaybk.csp.service;
 
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DataAccessException;
@@ -11,6 +17,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.PreparedStatement;
@@ -18,6 +26,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -394,26 +403,7 @@ public class CspService {
             if (!"DRAFT".equals(status) && !"SUBMITTED".equals(status)) {
                 throw invalid("STATUS 必須為 DRAFT 或 SUBMITTED");
             }
-            List<Map<String, Object>> invoices = jdbc.query(
-                    "SELECT i.INVOICE_ID, i.INVOICE_NO, v.VENDOR_NAME, i.ITEM, i.CURRENCY_CODE, "
-                            + "i.SUBTOTAL, i.TOTAL, i.INVOICE_DATE, i.DUE_DATE, i.REMARKS "
-                            + "FROM INVOICE i JOIN VENDOR v ON v.VENDOR_ID = i.VENDOR_ID "
-                            + "WHERE i.STATUS = ? ORDER BY i.INVOICE_ID",
-                    (rs, rowNum) -> {
-                        Map<String, Object> invoice = new LinkedHashMap<>();
-                        invoice.put("INVOICE_ID", rs.getLong("INVOICE_ID"));
-                        invoice.put("INVOICE_NO", rs.getString("INVOICE_NO"));
-                        invoice.put("VENDOR_NAME", rs.getString("VENDOR_NAME"));
-                        invoice.put("ITEM", rs.getString("ITEM"));
-                        invoice.put("CURRENCY_CODE", rs.getString("CURRENCY_CODE"));
-                        invoice.put("SUBTOTAL", rs.getBigDecimal("SUBTOTAL"));
-                        invoice.put("TOTAL", rs.getBigDecimal("TOTAL"));
-                        invoice.put("INVOICE_DATE", rs.getDate("INVOICE_DATE").toLocalDate().toString());
-                        java.sql.Date due = rs.getDate("DUE_DATE");
-                        invoice.put("DUE_DATE", due == null ? null : due.toLocalDate().toString());
-                        invoice.put("REMARKS", rs.getString("REMARKS"));
-                        return invoice;
-                    }, status);
+            List<Map<String, Object>> invoices = loadInvoices(status);
             return response(map, "INVQRY01", "0000", "交易成功", Map.of("INVOICE_LIST", invoices));
         } catch (BusinessException e) {
             return response(map, "INVQRY01", e.code, e.getMessage(), Map.of());
@@ -531,8 +521,80 @@ public class CspService {
      * @return
      */
     public Map<String, Object> exportInvoice(Map<String, Object> map) {
-        // 邏輯處理
-        return null;
+        try {
+            request(map);
+            // 與 API-5 共用查詢；加分題指定匯出 SUBMITTED 待審核請款單。
+            List<Map<String, Object>> invoices = loadInvoices("SUBMITTED");
+            try (XSSFWorkbook workbook = new XSSFWorkbook();
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                Sheet sheet = workbook.createSheet("請款單列表");
+                String[] headers = {"請款單號", "廠商", "項目", "幣別", "未稅金額", "含稅金額", "請款日", "到期日", "備註"};
+                String[] fields = {"INVOICE_NO", "VENDOR_NAME", "ITEM", "CURRENCY_CODE", "SUBTOTAL", "TOTAL",
+                        "INVOICE_DATE", "DUE_DATE", "REMARKS"};
+                int[] widths = {22, 28, 30, 10, 22, 22, 14, 14, 40};
+                Font headerFont = workbook.createFont();
+                headerFont.setBold(true);
+                CellStyle headerStyle = workbook.createCellStyle();
+                headerStyle.setFont(headerFont);
+                CellStyle amountStyle = workbook.createCellStyle();
+                amountStyle.setDataFormat(workbook.createDataFormat().getFormat("#,##0.00"));
+                Row header = sheet.createRow(0);
+                for (int column = 0; column < headers.length; column++) {
+                    Cell cell = header.createCell(column);
+                    cell.setCellValue(headers[column]);
+                    cell.setCellStyle(headerStyle);
+                    sheet.setColumnWidth(column, widths[column] * 256);
+                }
+                int rowNumber = 1;
+                for (Map<String, Object> invoice : invoices) {
+                    Row row = sheet.createRow(rowNumber++);
+                    for (int column = 0; column < fields.length; column++) {
+                        Cell cell = row.createCell(column);
+                        Object value = invoice.get(fields[column]);
+                        if (value instanceof BigDecimal amount) {
+                            // Excel 數值最多保留 15 位有效數字；較大金額以文字保留完整精度。
+                            if (amount.precision() > 15) cell.setCellValue(amount.toPlainString());
+                            else cell.setCellValue(amount.doubleValue());
+                            cell.setCellStyle(amountStyle);
+                        } else if (value != null) {
+                            cell.setCellValue(value.toString());
+                        }
+                    }
+                }
+                sheet.createFreezePane(0, 1);
+                workbook.write(output);
+                String data = Base64.getEncoder().encodeToString(output.toByteArray());
+                return response(map, "INVEPT01", "0000", "交易成功", Map.of("DATA", List.of(data)));
+            }
+        } catch (BusinessException e) {
+            return response(map, "INVEPT01", e.code, e.getMessage(), Map.of());
+        } catch (IOException | RuntimeException e) {
+            LOG.error("Invoice export failed", e);
+            return response(map, "INVEPT01", "9999", "系統錯誤", Map.of());
+        }
+    }
+
+    private List<Map<String, Object>> loadInvoices(String status) {
+        return jdbc.query(
+                "SELECT i.INVOICE_ID, i.INVOICE_NO, v.VENDOR_NAME, i.ITEM, i.CURRENCY_CODE, "
+                        + "i.SUBTOTAL, i.TOTAL, i.INVOICE_DATE, i.DUE_DATE, i.REMARKS "
+                        + "FROM INVOICE i JOIN VENDOR v ON v.VENDOR_ID = i.VENDOR_ID "
+                        + "WHERE i.STATUS = ? ORDER BY i.INVOICE_ID",
+                (rs, rowNum) -> {
+                    Map<String, Object> invoice = new LinkedHashMap<>();
+                    invoice.put("INVOICE_ID", rs.getLong("INVOICE_ID"));
+                    invoice.put("INVOICE_NO", rs.getString("INVOICE_NO"));
+                    invoice.put("VENDOR_NAME", rs.getString("VENDOR_NAME"));
+                    invoice.put("ITEM", rs.getString("ITEM"));
+                    invoice.put("CURRENCY_CODE", rs.getString("CURRENCY_CODE"));
+                    invoice.put("SUBTOTAL", rs.getBigDecimal("SUBTOTAL"));
+                    invoice.put("TOTAL", rs.getBigDecimal("TOTAL"));
+                    invoice.put("INVOICE_DATE", rs.getDate("INVOICE_DATE").toLocalDate().toString());
+                    java.sql.Date due = rs.getDate("DUE_DATE");
+                    invoice.put("DUE_DATE", due == null ? null : due.toLocalDate().toString());
+                    invoice.put("REMARKS", rs.getString("REMARKS"));
+                    return invoice;
+                }, status);
     }
 
     private void saveSingleBank(long vendorId, Map<String, Object> input, boolean isNewVendor) {
