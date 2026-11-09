@@ -406,7 +406,14 @@ function renderInvoiceList(list = [], tbodyId) {
       try {
         const rs = await API.invoiceUpdateStatus(invoice.INVOICE_ID, "REJECT");
         alert(`拒絕審核成功：${invoice.INVOICE_NO}\n狀態：${rs.OLD_STATUS} → ${rs.NEW_STATUS}`);
-        $("#btn-inv-refresh").click();
+        currentApprovalList = currentApprovalList.filter(
+          item => Number(item.INVOICE_ID) !== invoice.INVOICE_ID
+        );
+        const selectedInvoice = document.querySelector(".ap-pick:checked");
+        if (Number(selectedInvoice?.dataset.id) === invoice.INVOICE_ID) {
+          document.getElementById("selected-invoice-id").textContent = "";
+        }
+        renderInvoiceList(currentApprovalList, "#approval-list-tbody");
       } catch (e) {
         alert("拒絕審核失敗: " + e.message);
       }
